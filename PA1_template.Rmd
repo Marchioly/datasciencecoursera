@@ -1,0 +1,105 @@
+Reproducible Research project One
+===================================
+
+### DATA
+
+* steps--- the number of steps in five minute intervals by day.
+* date--- the day on which the measurements where taken.
+* interval--- the sequential five minute period identifier from midnight.
+
+First Download the data from the course website
+
+```{r}
+if(!file.exists("getdata-projectfiles-UCI HAR Dataset.zip")) {
+        temp <- tempfile()
+        download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",temp)
+        unzip(temp)
+        unlink(temp)
+}
+
+myData<- read.csv("activity.csv")
+myData$date<- as.Date(myData$date)
+
+```
+
+## The total number of steps taken each day
+The histogram shows the frequency of steps per day
+```{r}
+stepsperday<- with( myData, tapply( steps, date, sum))
+
+hist(stepsperday, col="green", main="Count of Steps per Day", xlab="Steps")
+
+```
+
+### Mean and median number of steps taken each day
+
+
+```{r}
+rmedian <- median(stepsperday, na.rm=TRUE)
+rmean <- mean(stepsperday, na.rm=TRUE)
+print(paste("The average number of steps taken each day is " ,round(rmean,1) , " and the median is " , round(rmedian,1)))
+
+```
+
+
+
+### Time series plot of the average number of steps taken
+This code aggregates the mean of the number of steps taken for each day. 
+```{r}
+library(ggplot2)
+steps_by_interval <- aggregate(steps ~ interval, myData, mean)
+qplot(x=interval, y=steps, data=steps_by_interval, geom="line", main="Steps per day at five minute intervals", xlab="Intervals", ylab="Steps taken")
+
+```
+
+### The 5-minute interval that, on average, contains the maximum number of steps
+
+
+```{r}
+mxSteps<-steps_by_interval[which.max(steps_by_interval$steps),]
+p<-paste("Interval " , mxSteps[1,1]," with a daily average of ", round(mxSteps[1,2],2) , " contained the highest number of steps ")
+p
+
+```
+
+### Code to describe and show a strategy for imputing missing data
+This code separates out the rows without NA. Then it takes the indices of the rows with NA. 
+Using the with indices to replace the contents of the step variable with the daily mean for that step. 
+```{r}
+myData2 <- myData
+myData_notNA <- subset(myData2, !is.na(myData2$steps))
+naf <- is.na(myData2$steps)
+myData_notNA_mean <- tapply(myData_notNA$steps, myData_notNA$interval, mean, na.rm=TRUE, simplify=TRUE)
+myData2$steps[naf] <- myData_notNA_mean[as.character(myData2$interval[naf])]
+```
+
+### 7 Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r}
+new_stepsperday <- tapply(myData2$steps, myData2$date, sum, na.rm=TRUE, simplify=T)
+hist(new_stepsperday, breaks= 10, col="blue", main="Count Steps per Day \n with Imputed Data"
+     , xlab="Steps")
+```
+
+### 8 Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+A flag is added to the the data frame to show whether the date fell on a weekday or a weekend. A further dataframe is generated separating out the data by time of week and averaging it. The data is then graphed into separatre panels using the time of week as the panel criterion. 
+```{r}
+is_weekday <- function(d) {
+  wd <- weekdays(d)
+  ifelse (wd == "Saturday" | wd == "Sunday", "weekend", "weekday")
+}
+
+dayflag <- is_weekday(myData[, 2])
+myData <- cbind(myData, dayflag)
+
+steps_by_interval_split <-
+  aggregate(steps ~ dayflag + interval, myData, mean)
+# steps_by_interval_split$date<-as.Date(steps_by_interval_split$date)
+# head(steps_by_interval_split)
+g <- ggplot(data = steps_by_interval_split, aes(x = interval, y = steps))
+g <- g + geom_line()
+g <- g + facet_wrap( ~ dayflag)
+g
+
+```
+
